@@ -1,0 +1,304 @@
+################################################################################
+#                         SECRETS & CREDENTIALS                               #
+################################################################################
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Private keys & certificates
+*.pem
+*.p12
+*.pfx
+*.key
+*.crt
+
+# Firebase credentials
+firebase-key.json
+firebase_key.json
+*-firebase-key.json
+**/firebase-key.json
+*-service-account.json
+
+# AWS credentials
+.aws/
+~/.aws/
+
+# API keys & tokens
+*.token
+*.secret
+
+################################################################################
+#                            JAVA / MAVEN                                      #
+################################################################################
+# Build directories
+**/target/
+**/build/
+**/libs/
+**/.gradle/
+
+# Maven
+**/.mvn/wrapper/maven-wrapper.jar
+**/.mvn/wrapper/maven-wrapper.properties
+**/pom.xml.tag
+**/pom.xml.releaseBackup
+**/pom.xml.versionsBackup
+**/pom.xml.next
+**/release.properties
+**/dependency-reduced-pom.xml
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+bin/
+
+# Test reports
+**/test-results/
+**/surefire-reports/
+**/target/site/
+
+################################################################################
+#                            PYTHON & ML                                       #
+################################################################################
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# Virtual environments
+**/venv/
+**/env/
+**/ENV/
+**/.venv/
+**/.env/
+**/myenv/
+**/booth-env/
+
+# Jupyter / IPython
+**/.ipynb_checkpoints
+**/*.ipynb_checkpoints
+
+# ML models & datasets (large files - mount as volumes instead)
+**/weights/
+**/weight/
+**/*.pth
+**/*.pt
+**/*.onnx
+**/*.h5
+**/*.pkl
+**/*.pickle
+
+# Chroma DB
+**/chroma_db*/
+**/chroma_db_*/
+
+# HuggingFace cache
+**/hf_cache/
+**/.cache/huggingface/
+
+# Local test outputs
+**/test_output.txt
+**/test_results/
+
+################################################################################
+#                          DOCKER & CONTAINERS                                 #
+################################################################################
+# Docker volumes (local development)
+**/postgres-data/
+**/postgres-ai-chat-data/
+**/postgres-notification-data/
+**/postgres-community-data/
+**/postgres-author-data/
+**/postgres-scan-data/
+**/postgres-user-data/
+**/redis-data/
+**/elasticsearch-data/
+**/mongo-data/
+**/db-data/
+
+# Docker compose overrides
+docker-compose.override.yml
+
+# Building artifacts
+Dockerfile.*
+.dockerignore
+
+################################################################################
+#                         KUBERNETES MANIFESTS                                 #
+################################################################################
+# Local K8s testing (optional - uncomment if generating locally)
+# k8s/
+# *.yaml
+# *.yml
+
+################################################################################
+#                            IDE & EDITORS                                     #
+################################################################################
+# VS Code
+.vscode/
+*.code-workspace
+.vscode/settings.json
+.vscode/launch.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+################################################################################
+#                         OPERATING SYSTEM                                     #
+################################################################################
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.~
+
+################################################################################
+#                              LOGS & LOGS                                      #
+################################################################################
+*.log
+*.logs
+logs/
+**/logs/
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Spring Boot logs
+spring.log
+application.log
+
+################################################################################
+#                        TESTING & REPORTS                                     #
+################################################################################
+# Test coverage
+coverage/
+.coverage
+htmlcov/
+junit.xml
+coverage.xml
+*.cover
+
+# Test results
+**/test-results/
+**/.test-results/
+test-results.xml
+
+################################################################################
+#                          TEMPORARY FILES                                      #
+################################################################################
+*.tmp
+*.temp
+*.bak
+*.backup
+.swp
+.swo
+
+# OS temp files
+$RECYCLE.BIN/
+System Volume Information/
+
+################################################################################
+#                         BUILD OUTPUTS                                        #
+################################################################################
+dist/
+bin/
+build/
+out/
+*.jar
+*.war
+*.ear
+*.zip
+
+################################################################################
+#                       OPTIONAL: NODE (if using)                               #
+################################################################################
+# node_modules/
+# npm-debug.log
+# yarn.lock
+# package-lock.json
+
+################################################################################
+#                    OPTIONAL: GRADLE (if using)                               #
+################################################################################
+# .gradle/
+# gradlew
+# gradlew.bat
+# gradle/
+
+################################################################################
+#                       OPTIONAL: MISC DEVELOPMENT                              #
+################################################################################
+# IntelliJ IDEA
+.idea_modules/
+out/
+
+# Local environment scripts
+local-env.sh
+local-env.bat
+setup-local.sh
+
+# Development database dumps
+db-dump-*.sql
+db-backup-*.tar.gz
+
+# Performance profiling
+*.jfr
+profiler-results.txt
+
+# Generated files
+generated/
+gen/

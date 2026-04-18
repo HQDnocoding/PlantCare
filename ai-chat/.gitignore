@@ -1,0 +1,6 @@
+.env
+weights/
+chroma_db/
+firebase-key.json
+firebase_key.json
+*-service-account.json

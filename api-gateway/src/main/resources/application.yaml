@@ -1,0 +1,449 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  main:
+    web-application-type: reactive
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      # CORS is handled centrally here so individual services
+      # do not need to configure it themselves
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            # false because mobile clients use Bearer token, not cookies
+            allowCredentials: false
+            maxAge: 3600
+
+      routes:
+
+        # ── Auth Service ───────────────────────────────────────────
+        # Public endpoints — no JWT required
+        - id: auth-public
+          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            # Rate limit: 100 req/s per IP — prevents OTP and login brute-force
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            # Open circuit after 50% failure rate, wait 30s before retrying
+            - name: CircuitBreaker
+              args:
+                name: auth-cb
+                fallbackUri: forward:/fallback/auth
+
+        # ── Chat Service ───────────────────────────────────────────
+        # Requires JWT — user_id is extracted from token and forwarded as X-User-Id
+        - id: chat
+          uri: ${CHAT_SERVICE_URL:http://chat-service:8000}
+          predicates:
+            - Path=/api/v1/chat/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            # Strip /api/v1 prefix — FastAPI router already handles /chat/**
+#            - RewritePath=/api/v1/(?<segment>.*), /$\{segment}
+            - name: CircuitBreaker
+              args:
+                name: chat-cb
+                fallbackUri: forward:/fallback/chat
+
+        # ── History Service ────────────────────────────────────────
+        # Shares the same downstream service and circuit breaker as chat
+        - id: history
+          uri: ${CHAT_SERVICE_URL:http://chat-service:8000}
+          predicates:
+            - Path=/api/v1/history/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 150
+                redis-rate-limiter.burstCapacity: 300
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+#            - RewritePath=/api/v1/(?<segment>.*), /$\{segment}
+            - name: CircuitBreaker
+              args:
+                name: chat-cb
+                fallbackUri: forward:/fallback/chat
+
+        # ── Diseases (Mobile Sync) ─────────────────────────────────
+        # Public endpoint for mobile offline sync — no JWT required
+        - id: diseases
+          uri: ${CHAT_SERVICE_URL:http://chat-service:8000}
+          predicates:
+            - Path=/api/v1/diseases/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 150
+                redis-rate-limiter.burstCapacity: 300
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: chat-cb
+                fallbackUri: forward:/fallback/diseases
+
+        - id: scan
+          uri: ${SCAN_SERVICE_URL:http://scan-service:8082}
+          predicates:
+            - Path=/api/v1/scans/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: scan-cb
+                fallbackUri: forward:/fallback/scan
+        - id: user-service
+          uri: ${USER_SERVICE_URL:http://user-service:8083}
+          predicates:
+            - Path=/api/v1/users/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: user-cb
+                fallbackUri: forward:/fallback/user
+        - id: post
+          uri: ${COMMUNITY_SERVICE_URL:http://community-service:8084}
+          predicates:
+            - Path=/api/v1/posts/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: community-cb
+                fallbackUri: forward:/fallback/community
+        - id: comment
+          uri: ${COMMUNITY_SERVICE_URL:http://community-service:8084}
+          predicates:
+            - Path=/api/v1/comments/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: community-cb
+                fallbackUri: forward:/fallback/community
+        - id: vote
+          uri: ${COMMUNITY_SERVICE_URL:http://community-service:8084}
+          predicates:
+            - Path=/api/v1/votes/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: community-cb
+                fallbackUri: forward:/fallback/community
+        - id: search
+          uri: ${SEARCH_SERVICE_URL:http://search-service:8085}
+          predicates:
+            - Path=/api/v1/search/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: search-cb
+                fallbackUri: forward:/fallback/search
+        - id: notification-sse
+          uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8086}
+          predicates:
+            - Path=/api/v1/notifications/subscribe
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+        - id: notification
+          uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8086}
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - AddRequestHeader=X-Forwarded-By, api-gateway
+            - name: CircuitBreaker
+              args:
+                name: notification-cb
+                fallbackUri: forward:/fallback/notification
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 200s
+      pool:
+        max-connections: 200
+        acquire-timeout: 3000
+        max-idle-time: 30s
+        max-life-time: 60s
+        eviction-interval: 30s
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration-seconds: 2592000
+  refresh-token-expiration-seconds: 3888000
+
+
+# Actuator — exposes /actuator/health for Docker healthcheck
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      access: read-only
+# ── Resilience4j Circuit Breaker ──────────────────────────────────
+# Note: /api/v1/diseases (mobile sync) shares chat-cb circuit breaker
+#       since it's routed to the same chat-service backend
+resilience4j:
+  circuitbreaker:
+    instances:
+      auth-cb:
+        sliding-window-size: 50
+        failure-rate-threshold: 30        # open circuit if 30% of requests fail
+        wait-duration-in-open-state: 60s  # wait 60s before moving to HALF-OPEN
+        permitted-number-of-calls-in-half-open-state: 10
+        slow-call-duration-threshold: 5s  # requests over 5s count as slow
+        slow-call-rate-threshold: 60      # open circuit if 60% of calls are slow
+
+      chat-cb:
+        sliding-window-size: 50
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 90s  # chat-service is heavier, wait longer
+        permitted-number-of-calls-in-half-open-state: 10
+        slow-call-duration-threshold: 60s # RAG + CNN + Gemini can be slow (up to 60s)
+        slow-call-rate-threshold: 60
+
+
+      scan-cb:
+        sliding-window-size: 50
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 10
+        slow-call-duration-threshold: 10s
+        slow-call-rate-threshold: 60
+
+      user-cb:
+        sliding-window-size: 50
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 10
+        slow-call-duration-threshold: 5s
+        slow-call-rate-threshold: 60
+
+      community-cb:
+        sliding-window-size: 50
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 10
+        slow-call-duration-threshold: 15s  # Allow for multipart/form-data upload (3+ images)
+        slow-call-rate-threshold: 60
+      search-cb:
+        sliding-window-size: 50
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 10
+        slow-call-duration-threshold: 10s
+        slow-call-rate-threshold: 60
+
+      notification-cb:
+        sliding-window-size: 50
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 90s
+        permitted-number-of-calls-in-half-open-state: 10
+        slow-call-duration-threshold: 60s
+        slow-call-rate-threshold: 60
+  timelimiter:
+    instances:
+      auth-cb:
+        timeout-duration: 100s
+      chat-cb:
+        timeout-duration: 180s
+      scan-cb:
+        timeout-duration: 100s
+      user-cb:
+        timeout-duration: 100s
+      community-cb:
+        timeout-duration: 100s
+      search-cb:
+        timeout-duration: 100s
+      notification-cb:
+        timeout-duration: 600s
+        
+logging:
+  level:
+    org.springframework.cloud.gateway: ${LOG_LEVEL:INFO}
+    com.backend.gateway: DEBUG

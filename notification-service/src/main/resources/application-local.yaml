@@ -1,0 +1,68 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: notification-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5439/plant_notification_db}
+    username: ${DB_USERNAME:plant_auth}
+    password: ${DB_PASSWORD:dat112004}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+app:
+  kafka:
+    topics:
+      user-followed: user.followed
+      post-commented: post.commented
+      post-voted: post.voted
+      comment-replied: comment.replied
+    partitions: 3
+    replicas: 1
+
+jwt:
+  secret: ${JWT_SECRET:janjcksncoiwf4093f9340fwkenf2jnfvvw-2=o-23ojw32939ncsjnc}
+
+internal:
+  secret: ${INTERNAL_SECRET:dat112004111111111222222222444444444000000aaaa999}
+
+firebase:
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:../firebase-key.json}
+  storage-bucket: ${FIREBASE_STORAGE_BUCKET:plant-55586.firebasestorage.app}
+
+logging:
+  level:
+    com.backend.notification: DEBUG
+    org.springframework.web: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always

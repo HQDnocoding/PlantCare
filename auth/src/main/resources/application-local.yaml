@@ -1,0 +1,134 @@
+server:
+  port: ${AUTH_PORT:8081}
+
+
+spring:
+  application:
+    name: auth-service
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: auth-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5435/plant_auth_db}
+    username: ${DB_USERNAME:plant_auth}
+    password: ${DB_PASSWORD:dat112004}
+
+
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+
+    org.hibernate.SQL: WARN
+
+feign:
+  client:
+    config:
+      user-service:
+        url: http://${USER_SERVICE_HOST:localhost}:8083
+        connect-timeout: 3000
+        read-timeout: 5000
+app:
+  jwt:
+    secret: ${JWT_SECRET:janjcksncoiwf4093f9340fwkenf2jnfvvw-2=o-23ojw32939ncsjnc}
+    access-token-expiration-seconds: 2592000
+    refresh-token-expiration-seconds: 3888000
+
+  oauth2:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:226739331190-oidosb21k1tg3t5sfs29f0qognuqskes.apps.googleusercontent.com}
+    facebook:
+      app-id: ${FACEBOOK_APP_ID:827075890399978}
+      app-secret: ${FACEBOOK_APP_SECRET:31fb984683633e40ff6d3ebbcf8a7440}
+      privacy-policy-url: ${FACEBOOK_PRIVACY_POLICY_URL:http://localhost:8080/api/v1/auth/privacy-policy}
+      deletion-callback-url: ${FACEBOOK_DELETION_CALLBACK_URL:http://localhost:8080/api/v1/auth/facebook/delete-data}
+      deletion-confirmation-url: ${FACEBOOK_DELETION_CONFIRMATION_URL:http://localhost:3000/deletion-confirmation}
+
+  idempotency:
+    ttl-seconds: 86400
+  kafka:
+    topics:
+      user-deleted: user.deleted
+    partitions: 3
+    replicas: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+
+logging:
+  level:
+    com.backend.auth: INFO
+    org.springframework.web: WARN
+    org.hibernate: WARN
+
+
+firebase:
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:../firebase-key.json}
+  storage-bucket: ${FIREBASE_STORAGE_BUCKET:plant-55586.firebasestorage.app}
+
+internal:
+  secret: ${INTERNAL_SECRET:dat112004111111111222222222444444444000000aaaa999}
+
+http:
+  pool:
+    max-total: 200
+    max-per-route: 50
+  timeout:
+    connect-seconds: 5
+    socket-seconds: 10
+
+outbox:
+  max-retries: 5
+  initial-wait-seconds: 60
+
+
+idempotency:
+  cleanup-interval-ms: 21600000

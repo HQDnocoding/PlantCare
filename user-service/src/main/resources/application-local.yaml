@@ -1,0 +1,109 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5437/plant_user_db}
+    username: ${DB_USERNAME:plant_auth}
+    password: ${DB_PASSWORD:dat112004}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: user-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:janjcksncoiwf4093f9340fwkenf2jnfvvw-2=o-23ojw32939ncsjnc}
+    access-token-expiration-seconds: 2592000
+    refresh-token-expiration-seconds: 3888000
+  kafka:
+    topics:
+      user-updated: user.updated
+      user-deleted: user.deleted
+      user-followed: user.followed
+    partitions: 3
+    replicas: 1
+  idempotency:
+    ttl-seconds: 86400
+
+    
+outbox:
+  max-retries: 5
+  initial-wait-seconds: 60
+
+feign:
+  client:
+    config:
+      auth-service:
+        url: http://${AUTH_SERVICE_HOST:localhost}:8081
+        connect-timeout: 3000
+        read-timeout: 5000
+
+firebase:
+  credentials-path: ../firebase-key.json
+  storage-bucket: ${FIREBASE_STORAGE_BUCKET:plant-55586.firebasestorage.app}
+
+logging:
+  level:
+    com.backend.user: DEBUG
+    org.springframework.web: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+internal:
+  secret: dat112004111111111222222222444444444000000aaaa999
+
+
+http:
+  pool:
+    max-total: 200
+    max-per-route: 50
+  timeout:
+    connect-seconds: 5
+    socket-seconds: 10
+
+idempotency:
+  cleanup-interval-ms: 21600000

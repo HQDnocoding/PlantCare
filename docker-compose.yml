@@ -1,0 +1,718 @@
+networks:
+  backend-net:
+    driver: bridge
+
+volumes:
+  postgres-auth-data:
+  postgres-scan-data:
+  redis-data:
+  postgres-user-data:
+  postgres-community-data:
+  postgres-notification-data:
+  postgres-admin-data:
+  postgres-ai-chat-data:
+  elasticsearch-data:
+
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: plant_postgres_auth
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "5435:5432" # pgAdmin: localhost:5435
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-plant_auth_db}
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_auth} -d ${POSTGRES_DB:-plant_auth_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  postgres-scan:
+    image: postgres:16-alpine
+    container_name: plant_postgres_scan
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "5436:5432" # pgAdmin: localhost:5436
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${SCAN_DB:-plant_scan_db}
+    volumes:
+      - postgres-scan-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_auth} -d ${SCAN_DB:-plant_scan_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  postgres-user:
+    image: postgres:16-alpine
+    container_name: plant_postgres_user
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "5437:5432" # pgAdmin: localhost:5437
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${USER_DB:-plant_user_db}
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_auth} -d ${USER_DB:-plant_user_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  postgres-community:
+    image: postgres:16-alpine
+    container_name: plant_postgres_community
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "5438:5432" # pgAdmin: localhost:5438
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${COMMUNITY_DB:-plant_community_db}
+    volumes:
+      - postgres-community-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_auth} -d ${COMMUNITY_DB:-plant_community_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  postgres-notification:
+    image: postgres:16-alpine
+    container_name: plant_postgres_notification
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "5439:5432" # pgAdmin: localhost:5439
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${NOTIFICATION_DB:-plant_notification_db}
+    volumes:
+      - postgres-notification-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_auth} -d ${NOTIFICATION_DB:-plant_notification_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  postgres-ai-chat:
+    image: postgres:16-alpine
+    container_name: plant_postgres_ai_chat
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "5440:5432" # pgAdmin: localhost:5440
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${AI_CHAT_DB:-plant_chat_db}
+    volumes:
+      - postgres-ai-chat-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_auth} -d ${AI_CHAT_DB:-plant_chat_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: plant_redis
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "6379:6379" # local service kết nối: localhost:6379
+    volumes:
+      - redis-data:/data
+    command: [ "redis-server", "--appendonly", "yes", "--timeout", "0" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli ping || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ── Zookeeper ──────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: plant_zookeeper
+    networks: [ backend-net ]
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "2181" ]
+      interval: 15s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ── Kafka (3 Brokers) ────────────────────────────────────────────────────────
+  kafka-1:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: plant_kafka_1
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092" # local service kết nối: localhost:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list" ]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+
+  kafka-2:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: plant_kafka_2
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9093:9093" # local service kết nối: localhost:9093
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:29093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9093 --list" ]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+
+  kafka-3:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: plant_kafka_3
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9094:9094" # local service kết nối: localhost:9094
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29094,PLAINTEXT_HOST://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:29094,PLAINTEXT_HOST://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9094 --list" ]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+
+  # ── PostgreSQL (Admin) ──────────────────────────────────────────────────────
+  # postgres-admin:
+  #   image: postgres:16-alpine
+  #   container_name: plant_postgres_admin
+  #   networks: [ backend-net ]
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${POSTGRES_USER}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #     POSTGRES_DB: ${ADMIN_DB:-plant_admin_db}
+  #   ports:
+  #     - "5441:5432"
+  #   volumes:
+  #     - postgres-admin-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${ADMIN_DB:-plant_admin_db}" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 15
+
+  # ── PostgreSQL (AI-Chat) ────────────────────────────────────────────────────
+
+
+  # ── Elasticsearch ──────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: plant_elasticsearch
+    networks: [ backend-net ]
+    restart: unless-stopped
+    ports:
+      - "9200:9200" # local service kết nối: localhost:9200
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - "indices.query.bool.max_clause_count=2048"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9200" ]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+
+  # ── Auth Service ───────────────────────────────────────────────────────────
+  auth-service:
+    build:
+      context: ./auth
+      dockerfile: Dockerfile
+    container_name: plant_auth_service
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    ports:
+      - "8081:${AUTH_PORT:-8081}" # For Docker debugging
+    volumes:
+      - ./firebase-key.json:/app/firebase-key.json
+    environment:
+      AUTH_PORT: ${AUTH_PORT:-8081}
+      DB_URL: jdbc:postgresql://postgres-auth:5432/${POSTGRES_DB:-plant_auth_db}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2000ms}
+      JWT_SECRET: ${JWT_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
+      FACEBOOK_PRIVACY_POLICY_URL: ${FACEBOOK_PRIVACY_POLICY_URL:-https://api.plantapp.com/api/v1/auth/privacy-policy}
+      FACEBOOK_DELETION_CALLBACK_URL: ${FACEBOOK_DELETION_CALLBACK_URL:-https://api.plantapp.com/api/v1/auth/facebook/delete-data}
+      FACEBOOK_DELETION_CONFIRMATION_URL: ${FACEBOOK_DELETION_CONFIRMATION_URL:-https://app.plantapp.com/deletion-confirmation}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29093,kafka-3:29094
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-key.json
+      FIREBASE_STORAGE_BUCKET: ${FIREBASE_STORAGE_BUCKET}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      CACHE_IDEMPOTENCY_TTL: ${CACHE_IDEMPOTENCY_TTL:-86400}
+      IDEMPOTENCY_CLEANUP_INTERVAL_MS: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:-21600000}
+      SPRING_PROFILES_ACTIVE: prod
+      USER_SERVICE_HOST: user-service
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "${AUTH_PORT:-8081}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+
+  # ── Chat Service ───────────────────────────────────────────────────────────
+  chat-service:
+    build:
+      context: ./ai-chat
+      dockerfile: Dockerfile
+    container_name: plant_chat_service
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      postgres-ai-chat:
+        condition: service_healthy
+    ports:
+      - "8000:${CHAT_PORT:-8000}" # For Docker debugging
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 180s
+    environment:
+      CHAT_PORT: ${CHAT_PORT:-8000}
+      PORT: ${CHAT_PORT:-8000}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON}
+      FIREBASE_STORAGE_BUCKET: ${FIREBASE_STORAGE_BUCKET}
+      MODEL_WEIGHTS_PATH_2: /app/app/best_loss.pth
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.6}
+      MODEL_NAME: ${MODEL_NAME:-mobilenetv4_conv_medium.e500_r224_in1k}
+      NUM_CLASSES: ${NUM_CLASSES:-6}
+      CHROMA_DB_PATH_2: /app/app/chroma_db
+      MODEL_EMBEDDING: ${MODEL_EMBEDDING:-BAAI/bge-m3}
+      HF_TOKEN: ${HF_TOKEN}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: postgres-ai-chat
+      DB_PORT: 5432
+      DB_NAME: ${AI_CHAT_DB:-plant_chat_db}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-20}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      CACHE_TTL: ${CACHE_TTL:-86400}
+      CLEANUP_INTERVAL_MS: ${CLEANUP_INTERVAL_MS:-21600000}
+    volumes:
+      - ./ai-chat/best_loss.pth:/app/app/best_loss.pth
+      - ./ai-chat/chroma_db:/app/app/chroma_db
+      - ./hf_cache:/app/.cache/huggingface
+
+  # ── Scan Service ───────────────────────────────────────────────────────────
+  scan-service:
+    build:
+      context: ./scan-service
+      dockerfile: Dockerfile
+    container_name: plant_scan_service
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      postgres-scan:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8082:${SCAN_PORT:-8082}" # For Docker debugging
+    volumes:
+      - ./firebase-key.json:/app/firebase-key.json
+    environment:
+      SCAN_PORT: ${SCAN_PORT:-8082}
+      DB_URL: jdbc:postgresql://postgres-scan:5432/${SCAN_DB:-plant_scan_db}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-key.json
+      FIREBASE_STORAGE_BUCKET: ${FIREBASE_STORAGE_BUCKET}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29093,kafka-3:29094
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2000ms}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      CACHE_IDEMPOTENCY_TTL: ${CACHE_IDEMPOTENCY_TTL:-86400}
+      IDEMPOTENCY_CLEANUP_INTERVAL_MS: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:-21600000}
+      AUTH_SERVICE_HOST: auth-service
+      SPRING_PROFILES_ACTIVE: prod
+      FEIGN_CLIENT_CONFIG_AUTH_SERVICE_READ_TIMEOUT: 15000
+      FEIGN_CLIENT_CONFIG_AUTH_SERVICE_CONNECT_TIMEOUT: 5000
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "${SCAN_PORT:-8082}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+
+  # ── User Service ───────────────────────────────────────────────────────────
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: plant_user_service
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8083:${USER_PORT:-8083}" # For Docker debugging
+    volumes:
+      - ./firebase-key.json:/app/firebase-key.json
+    environment:
+      USER_PORT: ${USER_PORT:-8083}
+      DB_URL: jdbc:postgresql://postgres-user:5432/${USER_DB:-plant_user_db}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-key.json
+      FIREBASE_STORAGE_BUCKET: ${FIREBASE_STORAGE_BUCKET}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29093,kafka-3:29094
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2000ms}
+      AUTH_SERVICE_HOST: auth-service
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      CACHE_IDEMPOTENCY_TTL: ${CACHE_IDEMPOTENCY_TTL:-86400}
+      IDEMPOTENCY_CLEANUP_INTERVAL_MS: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:-21600000}
+      SPRING_PROFILES_ACTIVE: prod
+      FEIGN_CLIENT_CONFIG_AUTH_SERVICE_READ_TIMEOUT: 15000
+      FEIGN_CLIENT_CONFIG_AUTH_SERVICE_CONNECT_TIMEOUT: 5000
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "${USER_PORT:-8083}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+
+  # ── Community Service ──────────────────────────────────────────────────────
+  community-service:
+    build:
+      context: ./community-service
+      dockerfile: Dockerfile
+    container_name: plant_community_service
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      postgres-community:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8084:${COMMUNITY_PORT:-8084}" # For Docker debugging
+    volumes:
+      - ./firebase-key.json:/app/firebase-key.json
+    environment:
+      COMMUNITY_PORT: ${COMMUNITY_PORT:-8084}
+      DB_URL: jdbc:postgresql://postgres-community:5432/${COMMUNITY_DB:-plant_community_db}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-key.json
+      FIREBASE_STORAGE_BUCKET: ${FIREBASE_STORAGE_BUCKET}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29093,kafka-3:29094
+      USER_SERVICE_HOST: user-service
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2000ms}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      SPRING_SECURITY_USER_NAME: ${SPRING_SECURITY_USER_NAME}
+      SPRING_SECURITY_USER_PASSWORD: ${SPRING_SECURITY_USER_PASSWORD}
+      CACHE_AUTHOR_TTL: ${CACHE_AUTHOR_TTL:-300}
+      CACHE_VOTE_COUNT_TTL: ${CACHE_VOTE_COUNT_TTL:-60}
+      CACHE_IDEMPOTENCY_TTL: ${CACHE_IDEMPOTENCY_TTL:-86400}
+      IDEMPOTENCY_CLEANUP_INTERVAL_MS: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:-21600000}
+      SPRING_PROFILES_ACTIVE: prod
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:8083}
+      FEIGN_CLIENT_CONFIG_USER_SERVICE_READ_TIMEOUT: 15000
+      FEIGN_CLIENT_CONFIG_USER_SERVICE_CONNECT_TIMEOUT: 5000
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "${COMMUNITY_PORT:-8084}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+
+  # ── Search Service ─────────────────────────────────────────────────────────
+  search-service:
+    build:
+      context: ./search-service
+      dockerfile: Dockerfile
+    container_name: plant_search_service
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8085:${SEARCH_PORT:-8085}" # For Docker debugging
+    environment:
+      SEARCH_PORT: ${SEARCH_PORT:-8085}
+      SERVER_PORT: ${SEARCH_PORT:-8085}
+      ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-http://elasticsearch:9200}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29093,kafka-3:29094
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2000ms}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      SPRING_PROFILES_ACTIVE: prod
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "${SEARCH_PORT:-8085}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+
+  # ── Notification Service ───────────────────────────────────────────────────
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: plant_notification_service
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8086:${NOTIFICATION_PORT:-8086}" # For Docker debugging
+    volumes:
+      - ./firebase-key.json:/app/firebase-key.json
+    environment:
+      NOTIFICATION_PORT: ${NOTIFICATION_PORT:-8086}
+      SERVER_PORT: ${NOTIFICATION_PORT:-8086}
+      DB_URL: jdbc:postgresql://postgres-notification:5432/${NOTIFICATION_DB:-plant_notification_db}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29093,kafka-3:29094
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-key.json
+      FIREBASE_STORAGE_BUCKET: ${FIREBASE_STORAGE_BUCKET}
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2000ms}
+      SPRING_PROFILES_ACTIVE: prod
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "${NOTIFICATION_PORT:-8086}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+
+  # ── API Gateway ────────────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: plant_api_gateway
+    networks: [ backend-net ]
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+      scan-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      community-service:
+        condition: service_healthy
+      search-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    ports:
+      - "${GATEWAY_PORT:-8080}:${GATEWAY_PORT:-8080}" # Docker debugging port
+    environment:
+      GATEWAY_PORT: ${GATEWAY_PORT:-8080}
+      AUTH_SERVICE_URL: http://auth-service:${AUTH_PORT:-8081}
+      CHAT_SERVICE_URL: http://chat-service:${CHAT_PORT:-8000}
+      SCAN_SERVICE_URL: http://scan-service:${SCAN_PORT:-8082}
+      USER_SERVICE_URL: http://user-service:${USER_PORT:-8083}
+      COMMUNITY_SERVICE_URL: http://community-service:${COMMUNITY_PORT:-8084}
+      SEARCH_SERVICE_URL: http://search-service:${SEARCH_PORT:-8085}
+      NOTIFICATION_SERVICE_URL: http://notification-service:${NOTIFICATION_PORT:-8086}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2000ms}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "${GATEWAY_PORT:-8080}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+      start_period: 50s
+  # ── Admin Service ──────────────────────────────────────────────────────────
+  # admin-service:
+  #   build:
+  #     context: ./admin-service
+  #     dockerfile: Dockerfile
+  #   container_name: plant_admin_service
+  #   networks: [ backend-net ]
+  #   restart: unless-stopped
+  #   depends_on:
+  #     postgres-admin:
+  #       condition: service_healthy
+  #     auth-service:
+  #       condition: service_healthy
+  #     user-service:
+  #       condition: service_healthy
+  #     community-service:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8099:8099"
+  #   environment:
+  #     SPRING_PROFILES_ACTIVE: prod
+  #     DB_URL: jdbc:postgresql://postgres-admin:5432/${ADMIN_DB:-plant_admin_db}
+  #     DB_USERNAME: ${POSTGRES_USER}
+  #     DB_PASSWORD: ${POSTGRES_PASSWORD}
+  #     ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+  #     ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+  #     ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@app.local}
+  #     ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-Admin Account}
+  #     USER_SERVICE_URL: http://user-service:8083
+  #     COMMUNITY_SERVICE_URL: http://community-service:8084
+  #     AUTH_SERVICE_URL: http://auth-service:8081
+  #     INTERNAL_SECRET: ${INTERNAL_SECRET}
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "wget -qO- http://localhost:8099/login || exit 1" ]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 15
+  #     start_period: 40s

@@ -1,0 +1,86 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: scan-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5436/plant_scan_db}
+    username: ${DB_USERNAME:plant_auth}
+    password: ${DB_PASSWORD:dat112004}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: scan-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+feign:
+  client:
+    config:
+      auth-service:
+        url: http://${AUTH_SERVICE_HOST:localhost}:8081
+        connect-timeout: 3000
+        read-timeout: 5000
+
+app:
+  kafka:
+    partitions: 3
+    replicas: 1
+  idempotency:
+    ttl-seconds: 86400
+    
+firebase:
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:../firebase-key.json}
+  storage-bucket: ${FIREBASE_STORAGE_BUCKET:plant-55586.firebasestorage.app}
+
+internal:
+  secret: ${INTERNAL_SECRET:dat112004111111111222222222444444444000000aaaa999}
+
+logging:
+  level:
+    com.backend.scan: DEBUG
+    org.springframework.web: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+http:
+  pool:
+    max-total: 200
+    max-per-route: 50
+  timeout:
+    connect-seconds: 5
+    socket-seconds: 10
+
+idempotency:
+  cleanup-interval-ms: 21600000

@@ -1,0 +1,140 @@
+server:
+  port: ${COMMUNITY_PORT:8084}
+
+spring:
+  application:
+    name: community-service
+  security:
+      user:
+        name: ${SPRING_SECURITY_USER_NAME}
+        password: ${SPRING_SECURITY_USER_PASSWORD}
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      group-id: community-service
+      auto-offset-reset: earliest
+  # Redis — dùng chung instance với auth-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 1000ms
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 25MB   # 4 ảnh x 5MB + metadata
+
+# Feign — gọi user-service
+feign:
+  client:
+    config:
+      user-service:
+        url: http://${USER_SERVICE_HOST:user-service}:8083
+        connect-timeout: 3000
+        read-timeout: 20000
+
+# Firebase
+firebase:
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:../firebase-key.json}
+  storage-bucket: ${FIREBASE_STORAGE_BUCKET:plant-55586.firebasestorage.app}
+
+# Cache TTL config (seconds)
+cache:
+  author-ttl: 300        # 5 phút — author info từ user-service
+  vote-count-ttl: 60     # 1 phút — vote counts
+
+app:
+  kafka:
+    topics:
+      post-created: post.created
+      post-updated: post.updated
+      post-deleted: post.deleted
+      post-commented: post.commented
+      post-voted: post.voted
+      comment-replied: comment.replied
+    partitions: 3
+    replicas: 3
+  idempotency:
+    ttl-seconds: 86400
+
+# Feed config
+feed:
+  default-page-size: 20
+  max-page-size: 50
+  max-images-per-post: 4
+  max-tags-per-post: 5
+  max-tag-length: 32
+
+outbox:
+  max-retries: 5
+  initial-wait-seconds: 60
+
+logging:
+  level:
+    com.backend.community_service: DEBUG
+    org.springframework.security: INFO
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  use-management-port: false
+
+
+internal:
+  secret: ${INTERNAL_SECRET:dat112004111111111222222222444444444000000aaaa999}
+
+http:
+  pool:
+    max-total: 200
+    max-per-route: 50
+  timeout:
+    connect-seconds: 5
+    socket-seconds: 10
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
