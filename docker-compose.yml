@@ -635,6 +635,7 @@ services:
     build:
       context: ./admin-client/admin-client
       dockerfile: Dockerfile
+      network: host
     container_name: plant_admin_client
     networks: [ backend-net ]
     restart: unless-stopped
@@ -649,9 +650,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
-    depends_on:
-      api-gateway:
-        condition: service_healthy
+    # depends_on:
+    #   api-gateway:
+    #     condition: service_healthy
 
   # ── API Gateway ────────────────────────────────────────────────────────────
   api-gateway:
