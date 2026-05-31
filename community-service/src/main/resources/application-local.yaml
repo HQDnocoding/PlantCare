@@ -1,0 +1,135 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: community-service
+  security:
+    user:
+      name: ${SPRING_SECURITY_USER_NAME:dat}
+      password: ${SPRING_SECURITY_USER_PASSWORD:112004}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5438/plant_community_db}
+    username: ${DB_USERNAME:plant_auth}
+    password: ${DB_PASSWORD:dat112004}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      group-id: community-service
+      auto-offset-reset: earliest
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 1000ms
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 25MB
+
+feign:
+  client:
+    config:
+      user-service:
+        url: http://${USER_SERVICE_HOST:localhost}:8083
+        connect-timeout: 3000
+        read-timeout: 5000
+
+firebase:
+  credentials-path: ../firebase-key.json
+  storage-bucket: plant-55586.firebasestorage.app
+
+cache:
+  author-ttl: 300
+  vote-count-ttl: 60
+
+feed:
+  default-page-size: 20
+  max-page-size: 50
+  max-images-per-post: 4
+  max-tags-per-post: 5
+  max-tag-length: 32
+
+outbox:
+  max-retries: 5
+  initial-wait-seconds: 60
+
+
+logging:
+  level:
+    com.backend.community_service: DEBUG
+    org.springframework.security: INFO
+
+app:
+  kafka:
+    topics:
+      post-created: post.created
+      post-updated: post.updated
+      post-deleted: post.deleted
+      post-commented: post.commented
+      post-voted: post.voted
+      comment-replied: comment.replied
+    partitions: 3
+    replicas: 1
+  idempotency:
+    ttl-seconds: 86400
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  use-management-port: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+
+internal:
+  secret: ${INTERNAL_SECRET:dat112004111111111222222222444444444000000aaaa999}
+
+http:
+  pool:
+    max-total: 200
+    max-per-route: 50
+  timeout:
+    connect-seconds: 5
+    socket-seconds: 10
+
+idempotency:
+  cleanup-interval-ms: 21600000
+
